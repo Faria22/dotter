@@ -39,6 +39,20 @@ Among other things, it explains how to setup and configure Dotter, as well as gi
 Now that you've configured all the global and local file sections, you can simply run `dotter` from within your repository.\
 All the files will be deployed to their target locations.
 
+## Custom Configuration Directory
+By default, Dotter looks for configuration files in the `.dotter` directory. However, you can use a different directory by specifying the `--dotter-dir` flag:
+
+```bash
+dotter --dotter-dir /path/to/config
+```
+
+This is particularly useful if you want to:
+- Keep your configuration files in a non-standard location
+- Use different configuration directories for different machines or setups
+- Run dotter without having to specify each individual config file path
+
+When `--dotter-dir` is specified, all configuration and cache paths will be relative to that directory unless explicitly overridden with individual flags like `--global-config` or `--local-config`.
+
 Check out `dotter -h` for the command-line flags that Dotter supports:
 
 ```
@@ -55,6 +69,8 @@ Commands:
   help             Print this message or the help of the given subcommand(s)
 
 Options:
+      --dotter-dir <DOTTER_DIR>
+          Location of the .dotter directory. If specified, all other paths will be relative to this directory unless overridden
   -g, --global-config <GLOBAL_CONFIG>
           Location of the global configuration [default: .dotter/global.toml]
   -l, --local-config <LOCAL_CONFIG>
