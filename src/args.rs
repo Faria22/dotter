@@ -4,9 +4,13 @@ use clap::{Parser, Subcommand};
 use clap_complete::Shell;
 
 /// A small dotfile manager.
-#[derive(Debug, Parser, Default, Clone)]
+#[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub struct Options {
+    /// Location of the .dotter directory. If specified, all other paths will be relative to this directory unless overridden
+    #[clap(long, value_parser, global = true)]
+    pub dotter_dir: Option<PathBuf>,
+
     /// Location of the global configuration
     #[clap(
         short,
@@ -118,7 +122,44 @@ pub enum Action {
     },
 }
 
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            dotter_dir: None,
+            global_config: PathBuf::from(".dotter/global.toml"),
+            local_config: PathBuf::from(".dotter/local.toml"),
+            cache_file: PathBuf::from(".dotter/cache.toml"),
+            cache_directory: PathBuf::from(".dotter/cache"),
+            pre_deploy: PathBuf::from(".dotter/pre_deploy.sh"),
+            post_deploy: PathBuf::from(".dotter/post_deploy.sh"),
+            pre_undeploy: PathBuf::from(".dotter/pre_undeploy.sh"),
+            post_undeploy: PathBuf::from(".dotter/post_undeploy.sh"),
+            dry_run: false,
+            verbosity: 0,
+            quiet: false,
+            force: false,
+            noconfirm: false,
+            patch: false,
+            diff_context_lines: 3,
+            action: None,
+        }
+    }
+}
+
 pub fn get_options() -> Options {
+    // We need to detect which flags were actually provided by the user
+    // We'll check if dotter_dir was provided and if individual paths were NOT provided
+    let args: Vec<String> = std::env::args().collect();
+    let has_dotter_dir = args.iter().any(|arg| arg == "--dotter-dir");
+    let has_global_config = args.iter().any(|arg| arg == "-g" || arg == "--global-config");
+    let has_local_config = args.iter().any(|arg| arg == "-l" || arg == "--local-config");
+    let has_cache_file = args.iter().any(|arg| arg == "--cache-file");
+    let has_cache_directory = args.iter().any(|arg| arg == "--cache-directory");
+    let has_pre_deploy = args.iter().any(|arg| arg == "--pre-deploy");
+    let has_post_deploy = args.iter().any(|arg| arg == "--post-deploy");
+    let has_pre_undeploy = args.iter().any(|arg| arg == "--pre-undeploy");
+    let has_post_undeploy = args.iter().any(|arg| arg == "--post-undeploy");
+    
     let mut opt = Options::parse();
     if opt.dry_run {
         opt.verbosity = std::cmp::max(opt.verbosity, 1);
@@ -127,5 +168,36 @@ pub fn get_options() -> Options {
     if opt.patch {
         opt.noconfirm = true;
     }
+    
+    // Apply dotter_dir to all paths that weren't explicitly set
+    if has_dotter_dir {
+        if let Some(ref dotter_dir) = opt.dotter_dir {
+            if !has_global_config {
+                opt.global_config = dotter_dir.join("global.toml");
+            }
+            if !has_local_config {
+                opt.local_config = dotter_dir.join("local.toml");
+            }
+            if !has_cache_file {
+                opt.cache_file = dotter_dir.join("cache.toml");
+            }
+            if !has_cache_directory {
+                opt.cache_directory = dotter_dir.join("cache");
+            }
+            if !has_pre_deploy {
+                opt.pre_deploy = dotter_dir.join("pre_deploy.sh");
+            }
+            if !has_post_deploy {
+                opt.post_deploy = dotter_dir.join("post_deploy.sh");
+            }
+            if !has_pre_undeploy {
+                opt.pre_undeploy = dotter_dir.join("pre_undeploy.sh");
+            }
+            if !has_post_undeploy {
+                opt.post_undeploy = dotter_dir.join("post_undeploy.sh");
+            }
+        }
+    }
+    
     opt
 }
