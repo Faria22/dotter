@@ -554,6 +554,10 @@ fn expand_directory(source: &Path, target: &FileTarget, config: &Configuration) 
             condition: _,
             recurse: Some(rec),
         }) => *rec,
+        // For symbolic targets without explicit recurse, default to false
+        // (symlink the whole directory instead of individual files)
+        FileTarget::Symbolic(_) => false,
+        // For templates and automatic targets, use the global config
         _ => config.recurse,
     };
 
@@ -826,5 +830,119 @@ mod test {
             sliver,
             &FileTarget::Symbolic(PathBuf::from("~/.SliverBodacious").into())
         );
+    }
+
+    #[test]
+    fn expand_directory_symbolic_no_recurse_by_default() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let test_dir = temp_dir.path().join("test_dir");
+        fs::create_dir(&test_dir).unwrap();
+        fs::write(test_dir.join("file1.txt"), "content1").unwrap();
+        fs::write(test_dir.join("file2.txt"), "content2").unwrap();
+
+        let config = Configuration {
+            files: Files::default(),
+            variables: Variables::default(),
+            packages: BTreeMap::new(),
+            #[cfg(feature = "scripting")]
+            helpers: Helpers::new(),
+            recurse: true, // global default
+            settings: Settings::default(),
+        };
+
+        // Test that symbolic target without explicit recurse defaults to false (no expansion)
+        let target = FileTarget::Symbolic(SymbolicTarget {
+            target: PathBuf::from("/target"),
+            owner: None,
+            recurse: None,
+            condition: None,
+        });
+
+        let result = expand_directory(&test_dir, &target, &config).unwrap();
+
+        // Should only have one entry (the directory itself), not expanded
+        assert_eq!(result.len(), 1);
+        assert!(result.contains_key(&test_dir));
+    }
+
+    #[test]
+    fn expand_directory_symbolic_explicit_recurse_true() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let test_dir = temp_dir.path().join("test_dir");
+        fs::create_dir(&test_dir).unwrap();
+        fs::write(test_dir.join("file1.txt"), "content1").unwrap();
+        fs::write(test_dir.join("file2.txt"), "content2").unwrap();
+
+        let config = Configuration {
+            files: Files::default(),
+            variables: Variables::default(),
+            packages: BTreeMap::new(),
+            #[cfg(feature = "scripting")]
+            helpers: Helpers::new(),
+            recurse: true,
+            settings: Settings::default(),
+        };
+
+        // Test that symbolic target with explicit recurse=true expands
+        let target = FileTarget::Symbolic(SymbolicTarget {
+            target: PathBuf::from("/target"),
+            owner: None,
+            recurse: Some(true),
+            condition: None,
+        });
+
+        let result = expand_directory(&test_dir, &target, &config).unwrap();
+
+        // Should have two entries (the files), not the directory
+        assert_eq!(result.len(), 2);
+        assert!(result.contains_key(&test_dir.join("file1.txt")));
+        assert!(result.contains_key(&test_dir.join("file2.txt")));
+    }
+
+    #[test]
+    fn expand_directory_template_recurse_by_default() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let test_dir = temp_dir.path().join("test_dir");
+        fs::create_dir(&test_dir).unwrap();
+        fs::write(test_dir.join("file1.txt"), "content1").unwrap();
+        fs::write(test_dir.join("file2.txt"), "content2").unwrap();
+
+        let config = Configuration {
+            files: Files::default(),
+            variables: Variables::default(),
+            packages: BTreeMap::new(),
+            #[cfg(feature = "scripting")]
+            helpers: Helpers::new(),
+            recurse: true, // global default
+            settings: Settings::default(),
+        };
+
+        // Test that template target uses global recurse setting
+        let target = FileTarget::ComplexTemplate(TemplateTarget {
+            target: PathBuf::from("/target"),
+            owner: None,
+            append: None,
+            prepend: None,
+            condition: None,
+        });
+
+        let result = expand_directory(&test_dir, &target, &config).unwrap();
+
+        // Should have two entries (the files), since templates use global recurse
+        assert_eq!(result.len(), 2);
+        assert!(result.contains_key(&test_dir.join("file1.txt")));
+        assert!(result.contains_key(&test_dir.join("file2.txt")));
     }
 }

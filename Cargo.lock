@@ -477,6 +477,7 @@ dependencies = [
  "serde",
  "shellexpand",
  "simplelog",
+ "tempfile",
  "tokio",
  "toml 0.4.10",
  "watchexec",
